@@ -30,6 +30,7 @@ usage() {
   echo -e "  ${CYAN}-rb${NC}     Extract ${BOLD}RoleBindings${NC}"
   echo -e "  ${CYAN}-cr${NC}     Extract ${BOLD}ClusterRoles${NC}"
   echo -e "  ${CYAN}-crb${NC}    Extract ${BOLD}ClusterRoleBindings${NC}"
+  echo -e "  ${CYAN}-mw${NC}     Extract ${BOLD}Middlewares${NC}"
 
 
   exit 1
@@ -47,7 +48,7 @@ main() {
          all_resources=(
             configmap ingress secret deployment service daemonset scaledobject statefulset poddisruptionbudget cronjob
             namespace persistentvolumeclaim persistentvolume endpoints serviceaccount role rolebinding clusterrole clusterrolebinding
-            networkpolicy horizontalpodautoscaler limitrange resourcequota event customresourcedefinition
+            networkpolicy horizontalpodautoscaler limitrange resourcequota event customresourcedefinition middleware
           )
           for res in "${all_resources[@]}"; do
                 # Map resource to outdir
@@ -77,6 +78,7 @@ main() {
                   resourcequota) outdir="resourcequota" ;;
                   event) outdir="event" ;;
                   customresourcedefinition) outdir="crd" ;;
+                  middleware) outdir="middleware" ;;
                 esac
 
                 mkdir -p "$outdir"
@@ -101,6 +103,7 @@ main() {
     -rb) resource="rolebinding"; outdir="rolebinding" ;;
     -cr) resource="clusterrole"; outdir="clusterrole" ;;
     -crb) resource="clusterrolebinding"; outdir="clusterrolebinding" ;;
+    -mw) resource="middleware"; outdir="middleware" ;;
     *) usage ;;
   esac
 
