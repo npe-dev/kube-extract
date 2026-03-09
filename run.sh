@@ -37,6 +37,9 @@ usage() {
 }
 
 main() {
+  # Check if kubectl-neat is installed
+  check_kubectl_neat
+
   # Ensure only one flag is passed
   if [ "$#" -ne 1 ]; then
     usage
@@ -138,11 +141,23 @@ confirm_namespace() {
   export namespace
 }
 
+check_kubectl_neat() {
+  if ! command -v kubectl-neat &> /dev/null && ! kubectl neat --help &> /dev/null; then
+    echo -e "${RED}✖ kubectl-neat is not installed.${NC}"
+    echo -e "${YELLOW}📦 Please install kubectl-neat using one of these methods:${NC}"
+    echo -e "   ${CYAN}kubectl krew:${NC}      ${BOLD}kubectl krew install neat${NC}"
+    echo -e "   ${CYAN}Direct download:${NC}   ${BOLD}https://github.com/itaysk/kubectl-neat/releases${NC}"
+    echo ""
+    exit 1
+  fi
+}
+
 extract_resources() {
   local resource=$1
   local outdir=$2
 
-  kubectl get "$resource" -n "$namespace" -o yaml > /tmp/kube_extract_all.yaml
+  # Use kubectl-neat to get clean resources directly
+  kubectl get "$resource" -n "$namespace" -o yaml | kubectl-neat > /tmp/kube_extract_all.yaml
 
   yq eval '.items[]' -o=y /tmp/kube_extract_all.yaml | \
   awk -v outdir="$outdir" '
@@ -162,23 +177,6 @@ extract_resources() {
 
     newfile="$outdir/${name}.yaml"
     mv "$file" "$newfile"
-
-    # Strip unwanted fields
-    yq eval 'del(
-      .metadata.managedFields,
-      .metadata.annotations."kubectl.kubernetes.io/last-applied-configuration",
-      .metadata.annotations."deployment.kubernetes.io/revision",
-      .metadata.creationTimestamp,
-      .metadata.resourceVersion,
-      .metadata.uid,
-      .metadata.generation,
-      .spec.clusterIP,
-      .spec.clusterIPs,
-      .spec.internalTrafficPolicy,
-      .spec.ipFamilies,
-      .spec.ipFamilyPolicy,
-      .status
-    )' -i "$newfile"
   done
 
   rm /tmp/kube_extract_all.yaml
