@@ -157,7 +157,15 @@ extract_resources() {
   local outdir=$2
 
   # Use kubectl-neat to get clean resources directly
-  kubectl get "$resource" -n "$namespace" -o yaml | kubectl-neat > /tmp/kube_extract_all.yaml
+  # For services, also remove clusterIP and related fields
+  if [[ "$resource" == "service" ]]; then
+    kubectl get "$resource" -n "$namespace" -o yaml | \
+      kubectl-neat | \
+      yq eval 'del(.items[].spec.clusterIP, .items[].spec.clusterIPs, .items[].spec.ipFamilies, .items[].spec.ipFamilyPolicy)' \
+      > /tmp/kube_extract_all.yaml
+  else
+    kubectl get "$resource" -n "$namespace" -o yaml | kubectl-neat > /tmp/kube_extract_all.yaml
+  fi
 
   yq eval '.items[]' -o=y /tmp/kube_extract_all.yaml | \
   awk -v outdir="$outdir" '
