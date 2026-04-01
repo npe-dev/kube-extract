@@ -176,13 +176,6 @@ extract_resources() {
   for file in "$outdir"/resource_*.yaml; do
     name=$(yq e '.metadata.name' "$file")
 
-    # Skip secrets that contain '-tls' to avoid TLS secrets
-    if [[ "$resource" == "secret" && "$name" == *-tls* ]]; then
-      echo -e "${YELLOW}⚠ Skipping TLS secret: $name${NC}"
-      rm "$file"
-      continue
-    fi
-
     newfile="$outdir/${name}.yaml"
     mv "$file" "$newfile"
   done
