@@ -31,6 +31,7 @@ usage() {
   echo -e "  ${CYAN}-cr${NC}     Extract ${BOLD}ClusterRoles${NC}"
   echo -e "  ${CYAN}-crb${NC}    Extract ${BOLD}ClusterRoleBindings${NC}"
   echo -e "  ${CYAN}-mw${NC}     Extract ${BOLD}Middlewares${NC}"
+  echo -e "  ${CYAN}-ta${NC}     Extract ${BOLD}TriggerAuthentications${NC}"
 
 
   exit 1
@@ -51,7 +52,7 @@ main() {
          all_resources=(
             configmap ingress secret deployment service daemonset scaledobject statefulset poddisruptionbudget cronjob
             namespace persistentvolumeclaim persistentvolume endpoints serviceaccount role rolebinding clusterrole clusterrolebinding
-            networkpolicy horizontalpodautoscaler limitrange resourcequota event customresourcedefinition middleware
+            networkpolicy horizontalpodautoscaler limitrange resourcequota event customresourcedefinition middleware triggerauthentication
           )
           for res in "${all_resources[@]}"; do
                 # Map resource to outdir
@@ -82,6 +83,7 @@ main() {
                   event) outdir="event" ;;
                   customresourcedefinition) outdir="crd" ;;
                   middleware) outdir="middleware" ;;
+                  triggerauthentication) outdir="triggerauthentication" ;;
                 esac
 
                 mkdir -p "$outdir"
@@ -107,6 +109,7 @@ main() {
     -cr) resource="clusterrole"; outdir="clusterrole" ;;
     -crb) resource="clusterrolebinding"; outdir="clusterrolebinding" ;;
     -mw) resource="middleware"; outdir="middleware" ;;
+    -ta) resource="triggerauthentication"; outdir="triggerauthentication" ;;
     *) usage ;;
   esac
 
@@ -131,9 +134,9 @@ confirm_namespace() {
   echo
 
   # Ask for confirmation
-  echo -e "${RED}❓  Continue extracting '${1}s' from namespace '$namespace'?${NC}"
-  read -p "[y/N]: " confirm
-  if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+  echo -e "${RED}❓  Continue extracting '${1}s' from namespace '$namespace' in context '$context'?${NC}"
+  read -p "[Y/n]: " confirm
+  if [[ "$confirm" =~ ^[Nn]$ ]]; then
     echo -e "${RED}✖ Aborted.${NC}"
     exit 1
   fi
@@ -155,16 +158,18 @@ check_kubectl_neat() {
 extract_resources() {
   local resource=$1
   local outdir=$2
+  local label_selector="app.kubernetes.io/managed-by!=Helm"
 
   # Use kubectl-neat to get clean resources directly
+  # Skip Helm-managed resources (managed-by=Helm label)
   # For services, also remove clusterIP and related fields
   if [[ "$resource" == "service" ]]; then
-    kubectl get "$resource" -n "$namespace" -o yaml | \
+    kubectl get "$resource" -n "$namespace" -l "$label_selector" -o yaml | \
       kubectl-neat | \
       yq eval 'del(.items[].spec.clusterIP, .items[].spec.clusterIPs, .items[].spec.ipFamilies, .items[].spec.ipFamilyPolicy)' \
       > /tmp/kube_extract_all.yaml
   else
-    kubectl get "$resource" -n "$namespace" -o yaml | kubectl-neat > /tmp/kube_extract_all.yaml
+    kubectl get "$resource" -n "$namespace" -l "$label_selector" -o yaml | kubectl-neat > /tmp/kube_extract_all.yaml
   fi
 
   yq eval '.items[]' -o=y /tmp/kube_extract_all.yaml | \
@@ -174,6 +179,7 @@ extract_resources() {
   '
 
   for file in "$outdir"/resource_*.yaml; do
+    [ -e "$file" ] || { echo -e "${YELLOW}⚠ No ${resource}s found in namespace '$namespace'.${NC}"; break; }
     name=$(yq e '.metadata.name' "$file")
 
     newfile="$outdir/${name}.yaml"
