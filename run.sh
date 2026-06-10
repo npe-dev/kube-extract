@@ -163,10 +163,16 @@ extract_resources() {
   # Use kubectl-neat to get clean resources directly
   # Skip Helm-managed resources (managed-by=Helm label)
   # For services, also remove clusterIP and related fields
+  # For secrets, also skip Helm release storage secrets (type: helm.sh/release.v1)
   if [[ "$resource" == "service" ]]; then
     kubectl get "$resource" -n "$namespace" -l "$label_selector" -o yaml | \
       kubectl-neat | \
       yq eval 'del(.items[].spec.clusterIP, .items[].spec.clusterIPs, .items[].spec.ipFamilies, .items[].spec.ipFamilyPolicy)' \
+      > /tmp/kube_extract_all.yaml
+  elif [[ "$resource" == "secret" ]]; then
+    kubectl get "$resource" -n "$namespace" -l "$label_selector" -o yaml | \
+      kubectl-neat | \
+      yq eval '.items = [.items[] | select(.type != "helm.sh/release.v1")]' \
       > /tmp/kube_extract_all.yaml
   else
     kubectl get "$resource" -n "$namespace" -l "$label_selector" -o yaml | kubectl-neat > /tmp/kube_extract_all.yaml
